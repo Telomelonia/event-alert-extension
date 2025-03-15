@@ -63,8 +63,8 @@ event-alert-extension/
 
    - Create a new Firebase project at https://console.firebase.google.com/
    - Enable Authentication and Firestore
+   - Copy `scripts/sample-config.js` to `scripts/config.js` and update it with your Firebase project credentials
    - Download Firebase SDK files (firebase-app.js, firebase-auth.js, firebase-firestore.js) and place them in the `scripts` folder
-   - Update `firebase-init.js` with your Firebase project credentials
 
 3. **Set up Firebase Cloud Functions** (for email notifications):
 

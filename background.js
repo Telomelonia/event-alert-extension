@@ -1,11 +1,16 @@
 // Initialize Firebase when the background script loads
-importScripts(
+try {
+  importScripts(
     'scripts/firebase-app.js',
     'scripts/firebase-auth.js',
     'scripts/firebase-firestore.js',
+    'scripts/config.js',
     'scripts/firebase-init.js'
   );
-  
+  console.log('Firebase scripts loaded successfully');
+} catch (error) {
+  console.error('Error loading Firebase scripts:', error);
+}
   // Alarm names
   const DAILY_CHECK_ALARM = 'dailyCheck';
   const WEEKLY_CHECK_ALARM = 'weeklyCheck';
