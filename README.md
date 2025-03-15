@@ -2,102 +2,137 @@
 
 a Chrome extension called "EventAlert" that tracks specified URLs for event updates and sends email notifications. I've designed a serverless architecture to minimize costs.
 
-# Event Alert Extension Testing Checklist
+# Event Alert Extension
 
-Use this checklist to verify that all aspects of the extension are working correctly before distribution.
+A Chrome extension that monitors websites for changes and sends notifications when changes are detected.
 
-## Setup and Installation
+## Features
 
-- [ ] Extension loads correctly in Chrome browser
-- [ ] Manifest.json has all required permissions
-- [ ] Firebase configuration is correctly set up with valid API keys
-- [ ] Onboarding page opens on first installation
+- **Monitor Multiple Websites**: Add any number of URLs to track for changes
+- **Selective Monitoring**: Choose specific elements on a page to monitor with an easy-to-use selector tool
+- **Flexible Scheduling**: Set monitoring frequency to daily or weekly for each URL
+- **Resource-Efficient**: Designed to be light on browser resources with optimized background checks
+- **Notification Options**: Receive immediate, daily, or weekly digest notifications
+- **Email Alerts**: Get email notifications when changes are detected
+- **User-Friendly Interface**: Easy-to-use dashboard to manage all your monitored URLs
 
-## Authentication
+## Project Structure
 
-- [ ] User can register a new account
-- [ ] User can log in with existing credentials
-- [ ] User can log out
-- [ ] Authentication state persists across browser sessions
-- [ ] Error handling for invalid credentials works correctly
+```
+event-alert-extension/
+├── manifest.json          # Extension configuration
+├── background.js          # Background service worker for monitoring
+├── popup.html             # Main extension popup
+├── onboarding.html        # User onboarding page
+├── scripts/
+│   ├── popup.js           # Popup UI functionality
+│   ├── content.js         # Content script for element selection
+│   ├── firebase-app.js    # Firebase core (not in repo - download from Firebase)
+│   ├── firebase-auth.js   # Firebase auth (not in repo - download from Firebase)
+│   ├── firebase-firestore.js # Firebase Firestore (not in repo - download from Firebase)
+│   └── firebase-init.js   # Firebase initialization
+├── styles/
+│   └── popup.css          # Styles for the popup UI
+├── functions/             # Firebase Cloud Functions
+│   ├── index.js           # Cloud function code for email notifications
+│   └── package.json       # Node.js dependencies for functions
+└── icons/
+    ├── icon16.png         # Extension icon
+    ├── icon48.png         # Extension icon
+    └── icon128.png        # Extension icon
+```
 
-## URL Management
+## Setup Instructions
 
-- [ ] User can add a new URL to monitor
-- [ ] Element selector tool works correctly
-- [ ] URL list displays correctly with all monitored URLs
-- [ ] Toggle switches for enabling/disabling URLs work
-- [ ] User can delete URLs from monitoring
-- [ ] Last checked time updates correctly after checks
+### Prerequisites
 
-## Background Monitoring
+- Google Chrome browser
+- Node.js and npm (for Firebase functions)
+- Firebase account
 
-- [ ] Daily alarm is created and fires correctly
-- [ ] Weekly alarm is created and fires correctly
-- [ ] URL content is fetched correctly
-- [ ] Content comparison works for detecting changes
-- [ ] Error handling for network issues works correctly
-- [ ] Alarm health check recovers from potential issues
+### Development Setup
 
-## Notifications
+1. **Clone the repository**:
 
-- [ ] Browser notifications appear when changes are detected
-- [ ] Cloud Functions deploy successfully
-- [ ] Email notifications are sent correctly
-- [ ] Notification preferences are respected
+   ```
+   git clone https://github.com/yourusername/event-alert-extension.git
+   cd event-alert-extension
+   ```
 
-## Settings
+2. **Set up Firebase**:
 
-- [ ] User can save notification preferences
-- [ ] Email notification toggle works
-- [ ] Notification frequency selection works
-- [ ] Settings are saved correctly between sessions
+   - Create a new Firebase project at https://console.firebase.google.com/
+   - Enable Authentication and Firestore
+   - Download Firebase SDK files (firebase-app.js, firebase-auth.js, firebase-firestore.js) and place them in the `scripts` folder
+   - Update `firebase-init.js` with your Firebase project credentials
 
-## Performance and Resource Usage
+3. **Set up Firebase Cloud Functions** (for email notifications):
 
-- [ ] Batch processing of URLs works efficiently
-- [ ] Memory usage remains reasonable
-- [ ] CPU usage spikes only during scheduled checks
-- [ ] No resource leaks occur over time
+   ```
+   cd functions
+   npm install
+   firebase login
+   firebase use --add
+   ```
 
-## UI and Experience
+4. **Deploy Cloud Functions**:
 
-- [ ] All UI elements render correctly
-- [ ] Tab navigation works smoothly
-- [ ] Form validation works correctly
-- [ ] Loading states are shown appropriately
-- [ ] Error messages are clear and helpful
+   ```
+   firebase deploy --only functions
+   ```
 
-## Cross-browser Testing
+5. **Load the extension in Chrome**:
+   - Open Chrome and navigate to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked" and select the extension folder
 
-- [ ] Works in Chrome
-- [ ] Works in other Chromium-based browsers (Edge, Brave, etc.)
+## Usage
 
-## Edge Cases
+1. **Create an account**:
 
-- [ ] Handles very large pages correctly
-- [ ] Works with pages that require authentication (where possible)
-- [ ] Handles pages with dynamic content appropriately
-- [ ] Recovers gracefully from network interruptions
+   - Click the extension icon and register with email and password
 
-## Security
+2. **Add your first URL to monitor**:
 
-- [ ] User data is stored securely
-- [ ] API keys and sensitive information are protected
-- [ ] Authentication flow is secure
-- [ ] No sensitive information is exposed in logs
+   - Navigate to the "Add URL" tab
+   - Enter the URL you want to monitor
+   - Optionally select a specific element to track changes
+   - Choose a check frequency (daily or weekly)
+   - Click "Add URL"
 
-## Notes
+3. **Configure notification settings**:
 
-Keep track of any issues discovered and their resolutions:
+   - Go to the "Settings" tab
+   - Set up your email notification preferences
+   - Choose between immediate notifications or digests
 
-1.
-2.
-3.
+4. **View and manage monitored URLs**:
+   - The "My URLs" tab shows all sites you're monitoring
+   - Toggle monitoring on/off as needed
+   - Edit or delete entries
 
-## Final Approval
+## Performance Considerations
 
-- [ ] All tests passed
-- [ ] Ready for distribution
+The extension is designed to be resource-efficient:
 
-<!-- Tested By:  Date: ____________ -->
+- Checks run on scheduled intervals (daily or weekly), not continuously
+- URLs are processed in batches to avoid overwhelming the browser
+- Content is compared using efficient hashing algorithms
+- Alarms are staggered to distribute server load
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Built with Firebase Authentication and Firestore
+- Uses Nodemailer for email notifications
+
+---
+
+For support or questions, please file an issue on this repository.
