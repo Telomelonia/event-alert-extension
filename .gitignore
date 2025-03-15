@@ -1,2 +1,5 @@
 scripts/config.js
+scripts/firebase-app.js
+scripts/firebase-auth.js
+scripts/firebase-firestore.js
 node_modules/
