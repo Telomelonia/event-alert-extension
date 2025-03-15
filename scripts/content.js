@@ -1,254 +1,268 @@
-// Content script for element selection on webpages
-
+// Selector tool for picking elements on webpages
 let selectorMode = false;
-let highlightedElement = null;
-let overlayElement = null;
+let selectedElement = null;
+let highlightOverlay = null;
 let infoPanel = null;
 
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'activateSelectorMode') {
-    activateSelectorMode(sendResponse);
-    return true; // Keep the message channel open for async response
+    // Start selector tool
+    startSelectorTool((selector) => {
+      // When selection is complete, send response back
+      sendResponse({ selector: selector });
+    });
+    return true; // Keep channel open for async response
   }
 });
 
-// Function to activate selector mode
-function activateSelectorMode(callback) {
+// Start the selector tool
+function startSelectorTool(callback) {
   if (selectorMode) return;
   
   selectorMode = true;
   
-  // Create overlay for instructions
+  // Create helper UI elements
   createInfoPanel();
   
-  // Add event listeners for mouse movement
+  // Store callback for later use
+  window.selectorCallback = callback;
+  
+  // Add mouse tracking events
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('click', handleElementClick);
   
-  // Add keyboard event listener for escape key
+  // Add escape key handler
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      deactivateSelectorMode();
-      callback({ cancelled: true });
+      stopSelectorTool();
+      if (callback) callback(null);
     }
   });
   
-  // Callback will be called when an element is selected
+  console.log('Selector tool activated');
 }
 
-// Function to deactivate selector mode
-function deactivateSelectorMode() {
+// Stop the selector tool
+function stopSelectorTool() {
+  if (!selectorMode) return;
+  
   selectorMode = false;
   
   // Remove event listeners
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('click', handleElementClick);
   
-  // Clean up UI elements
-  if (overlayElement) {
-    document.body.removeChild(overlayElement);
-    overlayElement = null;
+  // Clean up UI
+  if (highlightOverlay) {
+    document.body.removeChild(highlightOverlay);
+    highlightOverlay = null;
   }
   
   if (infoPanel) {
     document.body.removeChild(infoPanel);
     infoPanel = null;
   }
+  
+  // If we had highlighted an element, restore its original style
+  if (selectedElement) {
+    selectedElement.style.outline = selectedElement.dataset.originalOutline || '';
+    selectedElement = null;
+  }
+  
+  console.log('Selector tool deactivated');
 }
 
-// Handle mouse movement
-function handleMouseMove(event) {
+// Handle mouse movement for highlighting elements
+function handleMouseMove(e) {
+  if (!selectorMode) return;
+  
   // Get element under cursor
-  const element = document.elementFromPoint(event.clientX, event.clientY);
+  const element = document.elementFromPoint(e.clientX, e.clientY);
   
-  // Ignore our overlay elements
-  if (element === overlayElement || element === infoPanel || element?.closest('.selector-info-panel')) {
+  // Ignore selector tool UI elements
+  if (element === infoPanel || element === highlightOverlay || 
+      (element && element.closest('.selector-tool-ui'))) {
     return;
   }
   
-  // If we already highlighted this element, skip
-  if (element === highlightedElement) {
-    return;
+  // If it's the same element we already selected, do nothing
+  if (element === selectedElement) return;
+  
+  // Remove highlight from previous element
+  if (selectedElement) {
+    selectedElement.style.outline = selectedElement.dataset.originalOutline || '';
   }
   
-  // If we had a different element highlighted before, remove highlight
-  if (highlightedElement) {
-    removeHighlight();
+  // Highlight new element
+  selectedElement = element;
+  
+  if (selectedElement) {
+    // Save original style
+    selectedElement.dataset.originalOutline = selectedElement.style.outline;
+    
+    // Apply highlight
+    selectedElement.style.outline = '2px solid #4285F4';
+    
+    // Update info panel with element details
+    updateInfoPanel(selectedElement);
+    
+    // Create or update overlay for visual feedback
+    updateHighlightOverlay(selectedElement);
   }
-  
-  // Highlight the new element
-  highlightedElement = element;
-  highlightElement(element);
-  
-  // Update the info panel with the selector
-  updateInfoPanel(element);
 }
 
-// Handle element click
-function handleElementClick(event) {
-  if (!selectorMode || !highlightedElement) return;
+// Handle element click for selection
+function handleElementClick(e) {
+  if (!selectorMode || !selectedElement) return;
   
-  // Prevent default behavior
-  event.preventDefault();
-  event.stopPropagation();
+  // Prevent default click behavior
+  e.preventDefault();
+  e.stopPropagation();
   
-  // Get the optimal selector for the element
-  const selector = getOptimalSelector(highlightedElement);
+  // Generate optimal CSS selector
+  const selector = generateSelector(selectedElement);
   
-  // Deactivate selector mode
-  deactivateSelectorMode();
+  // Stop selector tool
+  stopSelectorTool();
   
-  // Send the selector back to the extension
-  chrome.runtime.sendMessage({ 
-    action: 'selectorSelected', 
-    selector: selector 
-  });
-  
-  // Also use the callback if available
+  // Return selector via callback
   if (window.selectorCallback) {
-    window.selectorCallback({ selector: selector });
+    window.selectorCallback(selector);
   }
 }
 
-// Highlight an element
-function highlightElement(element) {
-  if (!element) return;
-  
-  // Save original styles
-  element.dataset.originalOutline = element.style.outline;
-  element.dataset.originalOutlineOffset = element.style.outlineOffset;
-  
-  // Apply highlight styles
-  element.style.outline = '2px solid #4285f4';
-  element.style.outlineOffset = '2px';
-  
-  // Create overlay for larger elements to improve visibility
-  const rect = element.getBoundingClientRect();
-  if (rect.width > 10 && rect.height > 10) {
-    overlayElement = document.createElement('div');
-    overlayElement.style.position = 'fixed';
-    overlayElement.style.left = `${rect.left}px`;
-    overlayElement.style.top = `${rect.top}px`;
-    overlayElement.style.width = `${rect.width}px`;
-    overlayElement.style.height = `${rect.height}px`;
-    overlayElement.style.backgroundColor = 'rgba(66, 133, 244, 0.1)';
-    overlayElement.style.pointerEvents = 'none';
-    overlayElement.style.zIndex = '9998';
-    document.body.appendChild(overlayElement);
-  }
-}
-
-// Remove highlight from an element
-function removeHighlight() {
-  if (!highlightedElement) return;
-  
-  // Restore original styles
-  highlightedElement.style.outline = highlightedElement.dataset.originalOutline || '';
-  highlightedElement.style.outlineOffset = highlightedElement.dataset.originalOutlineOffset || '';
-  
-  // Remove overlay
-  if (overlayElement) {
-    document.body.removeChild(overlayElement);
-    overlayElement = null;
-  }
-  
-  highlightedElement = null;
-}
-
-// Create info panel
+// Create info panel with instructions and current selector
 function createInfoPanel() {
   infoPanel = document.createElement('div');
-  infoPanel.className = 'selector-info-panel';
-  infoPanel.style.position = 'fixed';
-  infoPanel.style.bottom = '20px';
-  infoPanel.style.left = '20px';
-  infoPanel.style.backgroundColor = 'white';
-  infoPanel.style.border = '1px solid #ddd';
-  infoPanel.style.borderRadius = '4px';
-  infoPanel.style.padding = '10px';
-  infoPanel.style.zIndex = '9999';
-  infoPanel.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-  infoPanel.style.maxWidth = '80%';
-  infoPanel.style.fontFamily = 'Arial, sans-serif';
-  infoPanel.style.fontSize = '14px';
+  infoPanel.className = 'selector-tool-ui';
+  
+  Object.assign(infoPanel.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    width: '300px',
+    padding: '15px',
+    backgroundColor: 'white',
+    color: '#333',
+    borderRadius: '8px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+    zIndex: '999999',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '14px'
+  });
   
   infoPanel.innerHTML = `
-    <div style="margin-bottom: 10px;">
-      <strong>Element Selector Tool</strong>
-      <p style="margin: 5px 0;">Hover over elements and click to select</p>
-      <p style="margin: 5px 0;">Press ESC to cancel</p>
+    <div style="margin-bottom: 10px">
+      <h3 style="margin: 0 0 10px 0">Element Selector Tool</h3>
+      <p style="margin: 0 0 5px 0">Hover over an element and click to select it.</p>
+      <p style="margin: 0">Press ESC to cancel.</p>
     </div>
     <div>
-      <strong>Current Selector:</strong>
-      <pre id="current-selector" style="margin: 5px 0; padding: 5px; background: #f5f5f5; border-radius: 4px; overflow: auto;"></pre>
+      <h4 style="margin: 10px 0 5px 0">Current Selector:</h4>
+      <code id="current-selector" style="display: block; padding: 8px; background: #f5f5f5; border-radius: 4px; overflow-x: auto; white-space: nowrap;"></code>
     </div>
   `;
   
   document.body.appendChild(infoPanel);
 }
 
-// Update the info panel with element information
+// Update the info panel with details about the selected element
 function updateInfoPanel(element) {
   if (!infoPanel || !element) return;
   
-  const selector = getOptimalSelector(element);
-  const selectorDisplay = document.getElementById('current-selector');
+  const selector = generateSelector(element);
+  const selectorDisplay = infoPanel.querySelector('#current-selector');
   
   if (selectorDisplay) {
     selectorDisplay.textContent = selector;
   }
 }
 
-// Generate an optimal CSS selector for an element
-function getOptimalSelector(element) {
+// Create or update highlight overlay for visual feedback
+function updateHighlightOverlay(element) {
+  if (!element) return;
+  
+  const rect = element.getBoundingClientRect();
+  
+  if (!highlightOverlay) {
+    highlightOverlay = document.createElement('div');
+    highlightOverlay.className = 'selector-tool-ui';
+    document.body.appendChild(highlightOverlay);
+  }
+  
+  Object.assign(highlightOverlay.style, {
+    position: 'fixed',
+    top: rect.top + 'px',
+    left: rect.left + 'px',
+    width: rect.width + 'px',
+    height: rect.height + 'px',
+    backgroundColor: 'rgba(66, 133, 244, 0.1)',
+    border: '2px solid #4285F4',
+    borderRadius: '2px',
+    pointerEvents: 'none',
+    zIndex: '999998'
+  });
+}
+
+// Generate an optimal CSS selector for the element
+function generateSelector(element) {
   if (!element) return '';
   
-  // Try to use ID if available and unique
+  // If element has an ID, use that (most specific)
   if (element.id) {
     return `#${element.id}`;
   }
   
-  // Try to use a unique class combination
-  if (element.classList.length > 0) {
-    const classSelector = Array.from(element.classList).map(c => `.${c}`).join('');
+  // Check if a combination of classes uniquely identifies the element
+  if (element.classList && element.classList.length > 0) {
+    const classSelector = '.' + Array.from(element.classList).join('.');
     if (document.querySelectorAll(classSelector).length === 1) {
       return classSelector;
     }
   }
   
-  // Use tag name with classes
-  if (element.classList.length > 0) {
-    const tagWithClass = `${element.tagName.toLowerCase()}${Array.from(element.classList).map(c => `.${c}`).join('')}`;
-    if (document.querySelectorAll(tagWithClass).length === 1) {
-      return tagWithClass;
+  // Try tag name + class combination
+  if (element.classList && element.classList.length > 0) {
+    const tagClassSelector = element.tagName.toLowerCase() + '.' + 
+                           Array.from(element.classList).join('.');
+    if (document.querySelectorAll(tagClassSelector).length === 1) {
+      return tagClassSelector;
     }
   }
   
-  // Use a more specific path-based selector
-  let current = element;
-  let selector = current.tagName.toLowerCase();
-  let count = 0;
+  // Use a more specific path with nth-child if needed
+  const path = [];
+  let currentElement = element;
   
-  // Build a path-based selector (limited to 3 levels to keep it manageable)
-  while (current.parentElement && count < 3) {
-    const parent = current.parentElement;
-    const siblings = Array.from(parent.children).filter(el => el.tagName === current.tagName);
+  // Build path up to max 3 levels deep to avoid overly complex selectors
+  for (let i = 0; i < 3; i++) {
+    if (!currentElement || currentElement === document.body) break;
     
-    if (siblings.length > 1) {
-      // Need to differentiate from siblings
-      const index = siblings.indexOf(current) + 1;
-      selector = `${current.tagName.toLowerCase()}:nth-of-type(${index})`;
+    let selector = currentElement.tagName.toLowerCase();
+    
+    // Add a class if it helps narrow down selection
+    if (currentElement.classList && currentElement.classList.length > 0) {
+      const mainClass = currentElement.classList[0];
+      selector += `.${mainClass}`;
     }
     
-    // Move up the tree
-    current = parent;
-    if (current.tagName !== 'BODY' && current.tagName !== 'HTML') {
-      selector = `${current.tagName.toLowerCase()} > ${selector}`;
+    // Add nth-child if needed for uniqueness
+    const parent = currentElement.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(
+        el => el.tagName === currentElement.tagName
+      );
+      
+      if (siblings.length > 1) {
+        const index = siblings.indexOf(currentElement) + 1;
+        selector += `:nth-child(${index})`;
+      }
     }
     
-    count++;
+    path.unshift(selector);
+    currentElement = currentElement.parentElement;
   }
   
-  return selector;
+  return path.join(' > ');
 }

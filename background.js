@@ -11,9 +11,16 @@ importScripts(
   const WEEKLY_CHECK_ALARM = 'weeklyCheck';
   
   // Set up alarms when extension is installed or updated
-  chrome.runtime.onInstalled.addListener(() => {
+  chrome.runtime.onInstalled.addListener((details) => {
     console.log('Event Alert Extension installed/updated');
     setupAlarms();
+    
+    // Open onboarding page on install
+    if (details.reason === 'install') {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('onboarding.html')
+      });
+    }
   });
   
   // Listen for alarm events
@@ -32,17 +39,31 @@ importScripts(
     // Clear any existing alarms
     chrome.alarms.clearAll();
     
-    // Create daily alarm - runs once per day
+    // Slightly randomize the alarm start times to distribute server load
+    // This helps prevent all users from checking at exactly the same time
+    
+    // Random offset between 0-60 minutes for daily checks
+    const dailyOffset = Math.floor(Math.random() * 60);
+    
+    // Random offset between 0-240 minutes (4 hours) for weekly checks
+    const weeklyOffset = Math.floor(Math.random() * 240);
+    
+    // Create daily alarm - runs once per day with offset
     chrome.alarms.create(DAILY_CHECK_ALARM, {
+      delayInMinutes: dailyOffset,
       periodInMinutes: 24 * 60 // 24 hours in minutes
     });
     
-    // Create weekly alarm - runs once per week
+    // Create weekly alarm - runs once per week with offset
     chrome.alarms.create(WEEKLY_CHECK_ALARM, {
+      delayInMinutes: weeklyOffset,
       periodInMinutes: 7 * 24 * 60 // 7 days in minutes
     });
     
-    console.log('Alarms set up successfully');
+    console.log(`Alarms set up successfully (daily offset: ${dailyOffset} min, weekly offset: ${weeklyOffset} min)`);
+    
+    // Schedule a periodic check of alarm health
+    setInterval(checkAlarmHealth, 12 * 60 * 60 * 1000); // Check every 12 hours
   }
   
   // Function to check URLs based on frequency
@@ -74,27 +95,52 @@ importScripts(
       
       console.log(`Found ${urlsSnapshot.size} ${frequency} URLs to check`);
       
-      // Process each URL
+      // Process URLs in batches to be more efficient
       const changedURLs = [];
-      for (const doc of urlsSnapshot.docs) {
-        const urlData = doc.data();
-        const urlId = doc.id;
+      const batchSize = 5; // Check 5 URLs at a time to avoid excessive resource usage
+      const urlDocs = urlsSnapshot.docs;
+      
+      // Process in batches
+      for (let i = 0; i < urlDocs.length; i += batchSize) {
+        const batch = urlDocs.slice(i, i + batchSize);
         
-        try {
-          const hasChanged = await checkURLForChanges(urlData, urlId);
-          if (hasChanged) {
-            changedURLs.push({
-              url: urlData.url,
-              id: urlId
-            });
+        // Process batch in parallel
+        const batchResults = await Promise.allSettled(
+          batch.map(async (doc) => {
+            const urlData = doc.data();
+            const urlId = doc.id;
+            
+            try {
+              const hasChanged = await checkURLForChanges(urlData, urlId);
+              if (hasChanged) {
+                return {
+                  url: urlData.url,
+                  id: urlId
+                };
+              }
+              return null;
+            } catch (error) {
+              console.error(`Error checking URL ${urlData.url}:`, error);
+              // Update last checked timestamp even if error occurred
+              await db.collection('monitoredURLs').doc(urlId).update({
+                lastChecked: firebase.firestore.FieldValue.serverTimestamp(),
+                lastError: error.message
+              });
+              return null;
+            }
+          })
+        );
+        
+        // Collect changes from this batch
+        batchResults.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            changedURLs.push(result.value);
           }
-        } catch (error) {
-          console.error(`Error checking URL ${urlData.url}:`, error);
-          // Update last checked timestamp even if error occurred
-          await db.collection('monitoredURLs').doc(urlId).update({
-            lastChecked: firebase.firestore.FieldValue.serverTimestamp(),
-            lastError: error.message
-          });
+        });
+        
+        // Add a small delay between batches to avoid overwhelming the browser
+        if (i + batchSize < urlDocs.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       
@@ -248,6 +294,26 @@ importScripts(
     // Open the extension popup when notification is clicked
     chrome.action.openPopup();
   });
+  
+  // Function to verify alarms are working correctly and recover if needed
+  async function checkAlarmHealth() {
+    try {
+      const alarms = await chrome.alarms.getAll();
+      
+      // Check if both expected alarms exist
+      const hasDaily = alarms.some(alarm => alarm.name === DAILY_CHECK_ALARM);
+      const hasWeekly = alarms.some(alarm => alarm.name === WEEKLY_CHECK_ALARM);
+      
+      if (!hasDaily || !hasWeekly) {
+        console.warn('Alarm health check: Missing alarms, recreating...');
+        setupAlarms();
+      } else {
+        console.log('Alarm health check: All alarms present');
+      }
+    } catch (error) {
+      console.error('Error checking alarm health:', error);
+    }
+  }
   
   // Listen for messages from popup
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
