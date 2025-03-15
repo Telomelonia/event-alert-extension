@@ -65,6 +65,14 @@ event-alert-extension/
    - Enable Authentication and Firestore
    - Copy `scripts/sample-config.js` to `scripts/config.js` and update it with your Firebase project credentials
    - Download Firebase SDK files (firebase-app.js, firebase-auth.js, firebase-firestore.js) and place them in the `scripts` folder
+   - Install required files
+
+   ```
+   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" -OutFile ".\firebase-app.js"
+   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" -OutFile ".\firebase-auth.js"
+   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js" -OutFile ".\firebase-firestore.js"
+
+   ```
 
 3. **Set up Firebase Cloud Functions** (for email notifications):
 
