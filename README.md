@@ -1,19 +1,14 @@
-# event-alert-extension
-
-a Chrome extension called "EventAlert" that tracks specified URLs for event updates and sends email notifications. I've designed a serverless architecture to minimize costs.
-
 # Event Alert Extension
 
-A Chrome extension that monitors websites for changes and sends notifications when changes are detected.
+A Chrome extension that monitors websites for changes and sends browser notifications when changes are detected.
 
 ## Features
 
 - **Monitor Multiple Websites**: Add any number of URLs to track for changes
 - **Selective Monitoring**: Choose specific elements on a page to monitor with an easy-to-use selector tool
-- **Flexible Scheduling**: Set monitoring frequency to daily or weekly for each URL
+- **Flexible Scheduling**: Set monitoring frequency to hourly, daily, or weekly for each URL
 - **Resource-Efficient**: Designed to be light on browser resources with optimized background checks
-- **Notification Options**: Receive immediate, daily, or weekly digest notifications
-- **Email Alerts**: Get email notifications when changes are detected
+- **Browser Notifications**: Get instant notifications when changes are detected
 - **User-Friendly Interface**: Easy-to-use dashboard to manage all your monitored URLs
 
 ## Project Structure
@@ -26,16 +21,9 @@ event-alert-extension/
 ├── onboarding.html        # User onboarding page
 ├── scripts/
 │   ├── popup.js           # Popup UI functionality
-│   ├── content.js         # Content script for element selection
-│   ├── firebase-app.js    # Firebase core (not in repo - download from Firebase)
-│   ├── firebase-auth.js   # Firebase auth (not in repo - download from Firebase)
-│   ├── firebase-firestore.js # Firebase Firestore (not in repo - download from Firebase)
-│   └── firebase-init.js   # Firebase initialization
+│   └── content.js         # Content script for element selection
 ├── styles/
 │   └── popup.css          # Styles for the popup UI
-├── functions/             # Firebase Cloud Functions
-│   ├── index.js           # Cloud function code for email notifications
-│   └── package.json       # Node.js dependencies for functions
 └── icons/
     ├── icon16.png         # Extension icon
     ├── icon48.png         # Extension icon
@@ -47,8 +35,6 @@ event-alert-extension/
 ### Prerequisites
 
 - Google Chrome browser
-- Node.js and npm (for Firebase functions)
-- Firebase account
 
 ### Development Setup
 
@@ -59,62 +45,29 @@ event-alert-extension/
    cd event-alert-extension
    ```
 
-2. **Set up Firebase**:
-
-   - Create a new Firebase project at https://console.firebase.google.com/
-   - Enable Authentication and Firestore
-   - Copy `scripts/sample-config.js` to `scripts/config.js` and update it with your Firebase project credentials
-   - Download Firebase SDK files (firebase-app.js, firebase-auth.js, firebase-firestore.js) and place them in the `scripts` folder
-   - Install required files
-
-   ```
-   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" -OutFile ".\firebase-app.js"
-   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" -OutFile ".\firebase-auth.js"
-   Invoke-WebRequest -Uri "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js" -OutFile ".\firebase-firestore.js"
-
-   ```
-
-3. **Set up Firebase Cloud Functions** (for email notifications):
-
-   ```
-   cd functions
-   npm install
-   firebase login
-   firebase use --add
-   ```
-
-4. **Deploy Cloud Functions**:
-
-   ```
-   firebase deploy --only functions
-   ```
-
-5. **Load the extension in Chrome**:
+2. **Load the extension in Chrome**:
    - Open Chrome and navigate to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked" and select the extension folder
 
 ## Usage
 
-1. **Create an account**:
+1. **Add your first URL to monitor**:
 
-   - Click the extension icon and register with email and password
-
-2. **Add your first URL to monitor**:
-
+   - Click the extension icon to open the popup
    - Navigate to the "Add URL" tab
    - Enter the URL you want to monitor
    - Optionally select a specific element to track changes
-   - Choose a check frequency (daily or weekly)
+   - Choose a check frequency (hourly, daily, or weekly)
    - Click "Add URL"
 
-3. **Configure notification settings**:
+2. **Configure notification settings**:
 
    - Go to the "Settings" tab
-   - Set up your email notification preferences
+   - Set your notification preferences
    - Choose between immediate notifications or digests
 
-4. **View and manage monitored URLs**:
+3. **View and manage monitored URLs**:
    - The "My URLs" tab shows all sites you're monitoring
    - Toggle monitoring on/off as needed
    - Edit or delete entries
@@ -123,23 +76,14 @@ event-alert-extension/
 
 The extension is designed to be resource-efficient:
 
-- Checks run on scheduled intervals (daily or weekly), not continuously
+- Checks run on scheduled intervals (hourly, daily, or weekly), not continuously
 - URLs are processed in batches to avoid overwhelming the browser
 - Content is compared using efficient hashing algorithms
-- Alarms are staggered to distribute server load
+- Alarms are staggered to distribute resource usage
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Built with Firebase Authentication and Firestore
-- Uses Nodemailer for email notifications
 
 ---
 
