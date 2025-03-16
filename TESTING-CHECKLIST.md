@@ -7,42 +7,61 @@ Use this checklist to verify that all aspects of the extension are working corre
 - [ ] Extension loads correctly in Chrome browser
 - [ ] Manifest.json has all required permissions
 - [ ] Onboarding page opens on first installation
+- [ ] Extension popup displays correctly with appropriate width
 
-## URL Management
+## Event Management
 
-- [ ] User can add a new URL to monitor
-- [ ] Element selector tool works correctly
-- [ ] URL list displays correctly with all monitored URLs
-- [ ] Toggle switches for enabling/disabling URLs work
-- [ ] User can delete URLs from monitoring
+- [ ] User can add a new event to monitor
+- [ ] Date detection tool works correctly on web pages
+- [ ] Manual date input works correctly
+- [ ] Event list displays correctly with all monitored events
+- [ ] Color-coded status indicators show correctly based on days remaining
+- [ ] Toggle switches for enabling/disabling events work
+- [ ] User can delete events from monitoring
+- [ ] User can edit existing events
 - [ ] Last checked time updates correctly after checks
-- [ ] User can edit existing URLs
+
+## Date Detection
+
+- [ ] Date detection correctly identifies various date formats:
+  - [ ] MM/DD/YYYY or DD/MM/YYYY
+  - [ ] YYYY/MM/DD
+  - [ ] Month DD, YYYY (e.g., January 1, 2023)
+  - [ ] DD Month YYYY (e.g., 1 January 2023)
+  - [ ] Relative dates (Today, Tomorrow, Next Week)
+- [ ] Date highlighting works on web pages
+- [ ] Date selection registers correctly when clicked
+- [ ] Parsed dates correctly calculate days until event
 
 ## Background Monitoring
 
-- [ ] Hourly alarm is created and fires correctly
 - [ ] Daily alarm is created and fires correctly
-- [ ] Weekly alarm is created and fires correctly
-- [ ] URL content is fetched correctly
-- [ ] Content comparison works for detecting changes
+- [ ] Event date proximity is calculated accurately
+- [ ] Notification triggers work at appropriate time intervals (1 week, 3 days, 1 day)
 - [ ] Error handling for network issues works correctly
 - [ ] Alarm health check recovers from potential issues
 
 ## Notifications
 
-- [ ] Browser notifications appear when changes are detected
+- [ ] Browser notifications appear when events are approaching
+- [ ] Notification content is clear and informative
 - [ ] Notification preferences are respected
 
 ## Settings
 
 - [ ] User can save notification preferences
 - [ ] Browser notification toggle works
-- [ ] Notification frequency selection works
 - [ ] Settings are saved correctly between sessions
+
+## Storage
+
+- [ ] Events are stored correctly in Chrome storage
+- [ ] Events persist when browser is restarted
+- [ ] Events sync across devices (if Chrome sync is enabled)
+- [ ] User preferences are stored correctly
 
 ## Performance and Resource Usage
 
-- [ ] Batch processing of URLs works efficiently
 - [ ] Memory usage remains reasonable
 - [ ] CPU usage spikes only during scheduled checks
 - [ ] No resource leaks occur over time
@@ -54,6 +73,7 @@ Use this checklist to verify that all aspects of the extension are working corre
 - [ ] Form validation works correctly
 - [ ] Loading states are shown appropriately
 - [ ] Error messages are clear and helpful
+- [ ] UI is appropriately spacious and not congested
 
 ## Cross-browser Testing
 
@@ -63,17 +83,10 @@ Use this checklist to verify that all aspects of the extension are working corre
 ## Edge Cases
 
 - [ ] Handles very large pages correctly
-- [ ] Works with pages that require authentication (where possible)
 - [ ] Handles pages with dynamic content appropriately
 - [ ] Recovers gracefully from network interruptions
-- [ ] Correctly handles cases when Chrome storage is full
-
-## Storage
-
-- [ ] URLs are correctly saved to Chrome storage
-- [ ] User preferences are correctly saved to Chrome storage
-- [ ] Data persists correctly between browser sessions
-- [ ] Changes to URLs in storage are immediately reflected in UI
+- [ ] Correctly handles pages with no detectable dates
+- [ ] Handles events that have already passed
 
 ## Notes
 
@@ -88,4 +101,4 @@ Keep track of any issues discovered and their resolutions:
 - [ ] All tests passed
 - [ ] Ready for distribution
 
-Tested By: ****\_\_\_\_**** Date: **\_\_**
+Tested By: ********\_\_******** Date: ****\_\_****
