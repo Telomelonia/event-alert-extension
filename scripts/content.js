@@ -8,6 +8,8 @@ let detectedDates = [];
 
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Content script received message:', message);
+  
   if (message.action === 'activateSelectorMode') {
     // Start selector tool
     startSelectorTool((selector) => {
@@ -18,9 +20,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.action === 'detectDates') {
+    console.log('Starting date detection...');
     // Start date detection
-    detectDatesOnPage((dates) => {
-      sendResponse({ dates: dates });
+    detectDatesOnPage((selectedDate) => {
+      console.log('Date selected:', selectedDate);
+      // When date is selected, send response back to background script
+      sendResponse({ date: selectedDate });
+      // Also send a message to the background script
+      chrome.runtime.sendMessage({
+        action: 'dateSelected',
+        dateInfo: selectedDate
+      });
     });
     return true; // Keep channel open for async response
   }
@@ -30,6 +40,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function detectDatesOnPage(callback) {
   dateDetectionMode = true;
   detectedDates = [];
+  
+  // Store callback for later use when a date is selected
+  window.dateCallback = callback;
   
   // Create info panel for date detection
   createDateInfoPanel();
@@ -54,6 +67,10 @@ function detectDatesOnPage(callback) {
     /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?,?\s+(20\d{2})\b/gi,
     // DD Month YYYY
     /\b(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December),?\s+(20\d{2})\b/gi,
+    // Abbreviated Month DD (e.g., Jan 12, Feb 15, MAR 01)
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\b/gi,
+    // DD Abbreviated Month (e.g., 12 Jan, 15 Feb)
+    /\b(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi,
     // Today, Tomorrow, Next Week, etc.
     /\b(today|tomorrow|next\s+week|next\s+month|next\s+weekend|this\s+weekend)\b/gi
   ];
@@ -65,33 +82,38 @@ function detectDatesOnPage(callback) {
     
     // Check each date pattern
     datePatterns.forEach(pattern => {
-      const matches = text.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          // Create a temporary element to highlight the date
-          const range = document.createRange();
-          const textContent = textNode.textContent;
-          const startIndex = textContent.indexOf(match);
-          
-          if (startIndex >= 0) {
+      let matches;
+      while ((matches = pattern.exec(text)) !== null) {
+        const matchText = matches[0];
+        
+        // Create a temporary element to highlight the date
+        const range = document.createRange();
+        const startIndex = text.indexOf(matchText, pattern.lastIndex - matchText.length);
+        
+        if (startIndex >= 0) {
+          try {
             range.setStart(textNode, startIndex);
-            range.setEnd(textNode, startIndex + match.length);
+            range.setEnd(textNode, startIndex + matchText.length);
             
             // Store the date information
             detectedDates.push({
-              date: match,
+              date: matchText,
               element: parentElement,
               range: range,
               xpath: getXPathForElement(parentElement)
             });
             
             // Highlight the date text
-            highlightDate(range, match);
+            highlightDate(range, matchText);
+          } catch (e) {
+            console.log('Could not highlight date: ', e);
           }
-        });
+        }
       }
     });
   });
+  
+  console.log(`Detected ${detectedDates.length} dates on page`);
   
   // Update info panel with detected dates
   updateDateInfoPanel();
@@ -106,8 +128,6 @@ function detectDatesOnPage(callback) {
       if (callback) callback(null);
     }
   });
-  
-  console.log('Date detection activated');
 }
 
 // Create info panel with instructions and detected dates
@@ -248,6 +268,8 @@ function selectDate(dateInfo) {
     selectedDate.daysUntil = daysUntil;
   }
   
+  console.log('Selected date:', selectedDate);
+  
   // Return selected date via callback
   if (window.dateCallback) {
     window.dateCallback(selectedDate);
@@ -350,6 +372,42 @@ function parseDate(dateStr) {
     return date;
   }
   
+  // Try abbreviated month formats (e.g. MAR 12, FEB 15)
+  const abbrevMonths = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+  };
+  
+  // Try "MMM DD" format (e.g., "MAR 12", "FEB 15")
+  const regexAbbrev1 = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
+  const matchAbbrev1 = dateStr.match(regexAbbrev1);
+  if (matchAbbrev1) {
+    const monthName = matchAbbrev1[1].toLowerCase();
+    const month = abbrevMonths[monthName];
+    const day = parseInt(matchAbbrev1[2]);
+    
+    if (month !== undefined && day >= 1 && day <= 31) {
+      // Use current year for abbreviated dates without year
+      const currentYear = new Date().getFullYear();
+      return new Date(currentYear, month, day);
+    }
+  }
+  
+  // Try "DD MMM" format (e.g., "12 MAR", "15 FEB")
+  const regexAbbrev2 = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
+  const matchAbbrev2 = dateStr.match(regexAbbrev2);
+  if (matchAbbrev2) {
+    const day = parseInt(matchAbbrev2[1]);
+    const monthName = matchAbbrev2[2].toLowerCase();
+    const month = abbrevMonths[monthName];
+    
+    if (month !== undefined && day >= 1 && day <= 31) {
+      // Use current year for abbreviated dates without year
+      const currentYear = new Date().getFullYear();
+      return new Date(currentYear, month, day);
+    }
+  }
+  
   // Try MM/DD/YYYY or DD/MM/YYYY format
   const regex1 = /(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})/;
   const match1 = dateStr.match(regex1);
@@ -424,7 +482,7 @@ function parseDate(dateStr) {
   return null;
 }
 
-// Original element selector functionality
+// Rest of the selector tool code remains the same
 function startSelectorTool(callback) {
   if (selectorMode) return;
   
@@ -672,5 +730,5 @@ function generateSelector(element) {
     currentElement = currentElement.parentElement;
   }
   
-    return path.join(' > ');
-  }
+  return path.join(' > ');
+}

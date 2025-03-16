@@ -11,14 +11,14 @@ Use this checklist to verify that all aspects of the extension are working corre
 
 ## Event Management
 
-- [ ] User can add a new event to monitor
+- [x] User can add a new event to monitor
 - [ ] Date detection tool works correctly on web pages
-- [ ] Manual date input works correctly
-- [ ] Event list displays correctly with all monitored events
-- [ ] Color-coded status indicators show correctly based on days remaining
-- [ ] Toggle switches for enabling/disabling events work
-- [ ] User can delete events from monitoring
-- [ ] User can edit existing events
+- [x] Manual date input works correctly
+- [x] Event list displays correctly with all monitored events
+- [x] Color-coded status indicators show correctly based on days remaining
+- [x] Toggle switches for enabling/disabling events work
+- [x] User can delete events from monitoring
+- [x] User can edit existing events
 - [ ] Last checked time updates correctly after checks
 
 ## Date Detection

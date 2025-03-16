@@ -125,34 +125,101 @@ async function checkAlarmHealth() {
   }
 }
 
+// Store active date detection tabs to manage their lifecycle
+const dateDetectionTabs = new Map();
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Background script received message:', message);
+  
   if (message.action === 'openDateDetector') {
-    openDateDetector(message.url, sendResponse);
+    openDateDetector(message.url)
+      .then(dateInfo => {
+        console.log('Returning date info to popup:', dateInfo);
+        sendResponse(dateInfo);
+      })
+      .catch(error => {
+        console.error('Error in date detection:', error);
+        sendResponse({ error: error.message });
+      });
     return true; // Indicates async response
+  }
+  
+  // Handle tab closed event
+  if (message.action === 'tabClosed' && message.tabId) {
+    if (dateDetectionTabs.has(message.tabId)) {
+      dateDetectionTabs.delete(message.tabId);
+    }
+  }
+  
+  // Handle date selected event from content script
+  if (message.action === 'dateSelected' && message.dateInfo) {
+    const tabId = sender.tab.id;
+    if (dateDetectionTabs.has(tabId)) {
+      const callback = dateDetectionTabs.get(tabId);
+      callback(message.dateInfo);
+      dateDetectionTabs.delete(tabId);
+      chrome.tabs.remove(tabId);
+    }
   }
 });
 
 // Function to open a tab with the date detector
-async function openDateDetector(url, callback) {
-  try {
-    // Open a new tab with the target website
-    const tab = await chrome.tabs.create({ url: url, active: true });
-    
-    // Inject the content script for date detection
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['scripts/content.js']
-    });
-    
-    // Send a message to the content script to activate date detection
-    chrome.tabs.sendMessage(tab.id, { action: 'detectDates' }, (response) => {
-      if (response && response.date) {
-        callback({ date: response.date });
-      }
-    });
-  } catch (error) {
-    console.error('Error opening date detector:', error);
-    callback({ error: error.message });
-  }
+async function openDateDetector(url) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Open a new tab with the target website
+      chrome.tabs.create({ url: url, active: true }, async (tab) => {
+        console.log('New tab created for date detection:', tab.id);
+        
+        // Store a promise resolver for this tab
+        dateDetectionTabs.set(tab.id, resolve);
+        
+        // Handle tab closing without selection
+        chrome.tabs.onRemoved.addListener(function tabRemovedListener(tabId) {
+          if (tabId === tab.id && dateDetectionTabs.has(tabId)) {
+            console.log('Date detection tab closed without selection');
+            dateDetectionTabs.delete(tabId);
+            resolve(null);
+            chrome.tabs.onRemoved.removeListener(tabRemovedListener);
+          }
+        });
+        
+        // Wait for the page to load
+        chrome.tabs.onUpdated.addListener(function tabUpdatedListener(tabId, changeInfo) {
+          if (tabId === tab.id && changeInfo.status === 'complete') {
+            console.log('Date detection page loaded, injecting content script');
+            
+            // Remove the listener to avoid duplicate injections
+            chrome.tabs.onUpdated.removeListener(tabUpdatedListener);
+            
+            // Inject the content script for date detection
+            setTimeout(() => {
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['scripts/content.js']
+              })
+              .then(() => {
+                console.log('Content script injected, activating date detection');
+                // Send a message to the content script to activate date detection
+                chrome.tabs.sendMessage(tab.id, { action: 'detectDates' }, (response) => {
+                  console.log('Got initial response from content script:', response);
+                  // The actual date selection will come through the message listener
+                  // This is just confirming the content script received our message
+                });
+              })
+              .catch(error => {
+                console.error('Failed to inject content script:', error);
+                dateDetectionTabs.delete(tab.id);
+                reject(error);
+              });
+            }, 500); // Give the page a moment to fully render
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Error opening date detector:', error);
+      reject(error);
+    }
+  });
 }
