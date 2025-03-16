@@ -64,6 +64,12 @@
       text-align: center;
       color: #777;
     }
+
+    .highlight {
+      background-color: #fffde7;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
   </style>
 </head>
 <body>
@@ -71,85 +77,110 @@
   
   <p>
     Thank you for installing Event Alert Extension! This guide will help you get started
-    with monitoring websites for changes and receiving notifications.
+    with monitoring websites for upcoming events and receiving timely notifications.
   </p>
   
   <div class="step">
-    <h2><span class="step-number">1</span>Add Your First URL to Monitor</h2>
+    <h2><span class="step-number">1</span>Add Your First Event to Monitor</h2>
     <p>
-      Click on the extension icon in your browser toolbar and:
+      Click on the extension icon in your browser toolbar and go to the "Add Event" tab:
     </p>
     <ol>
-      <li>Enter the full URL of the website you want to monitor (e.g., https://example.com/events)</li>
-      <li>If you want to monitor only a specific section of the page, use the "Pick from page" button to select that element</li>
-      <li>Choose how frequently you want to check for changes (hourly, daily, or weekly)</li>
-      <li>Click "Add URL" to start monitoring</li>
+      <li>Enter the full URL of the website containing the event information (e.g., https://example.com/events)</li>
+      <li>Choose to auto-detect dates on the page or set a date manually</li>
+      <li>If auto-detecting, click "Detect Dates" and select the event date on the page</li>
+      <li>Add an optional event name for easier identification</li>
+      <li>Select when you want to receive notifications</li>
+      <li>Click "Add Event" to start monitoring</li>
     </ol>
-  </div>
-  
-  <div class="step">
-    <h2><span class="step-number">2</span>Configure Notification Settings</h2>
-    <p>
-      Go to the "Settings" tab to configure how you want to be notified about changes:
-    </p>
-    <ol>
-      <li>Choose whether to receive browser notifications</li>
-      <li>Select notification frequency (immediate, daily digest, or weekly digest)</li>
-      <li>Click "Save Settings" to apply your preferences</li>
-    </ol>
-    <div class="tip">
-      <strong>Tip:</strong> For important websites, choose "immediate" notifications. For less critical 
-      websites, consider using digests to reduce the number of notifications you receive.
-    </div>
-  </div>
-  
-  <div class="step">
-    <h2><span class="step-number">3</span>Managing Your Monitored URLs</h2>
-    <p>
-      The "My URLs" tab shows all the websites you're currently monitoring. For each URL, you can:
-    </p>
-    <ul>
-      <li>Toggle monitoring on/off using the switch</li>
-      <li>View details about the URL, selector, and last check time</li>
-      <li>Edit the monitoring settings</li>
-      <li>Delete URLs you no longer want to monitor</li>
-    </ul>
-  </div>
-  
-  <h2>Understanding Element Selection</h2>
-  <p>
-    When you click "Pick from page," a new tab will open with the target website. Here's how to use the selector tool:
-  </p>
-  <ol>
-    <li>Hover over different elements on the page. They will be highlighted as you move your mouse.</li>
-    <li>The selector tool will show you the CSS selector for the current element.</li>
-    <li>When you find the section you want to monitor, click on it to select.</li>
-    <li>The selector will be automatically filled in the extension form.</li>
-  </ol>
-  <div class="tip">
-    <strong>Tip:</strong> Select the most specific container that holds the content you want to monitor.
-    For example, if you're watching for new products, select the product listing container rather than the entire page.
   </div>
   
   <h2>FAQ</h2>
-  <p><strong>Q: How often will the extension check for changes?</strong></p>
-  <p>A: The extension will check hourly, daily, or weekly, depending on your selection for each URL.</p>
+  <p><strong>Q: How often will the extension check for upcoming events?</strong></p>
+  <p>A: The extension performs a daily check to see if any events are approaching their notification dates.</p>
   
   <p><strong>Q: Will this slow down my browser?</strong></p>
   <p>A: No, the extension is designed to be resource-efficient. Checks happen on a schedule in the background, not continuously.</p>
   
-  <p><strong>Q: Is there a limit to how many URLs I can monitor?</strong></p>
-  <p>A: There's no hard limit, but monitoring too many URLs might use more resources. Start with a few important URLs and add more as needed.</p>
+  <p><strong>Q: Is there a limit to how many events I can monitor?</strong></p>
+  <p>A: Since all data is stored locally, you can monitor as many events as you want, but keeping the list manageable will make it easier to track your important events.</p>
   
-  <p><strong>Q: What happens if I'm not using my browser when a change is detected?</strong></p>
-  <p>A: You'll see a notification the next time you open your browser if changes were detected while you were away.</p>
+  <p><strong>Q: What happens if I'm not using my browser when an event notification is triggered?</strong></p>
+  <p>A: Chrome will handle the notification based on your system settings. On most systems, you'll see the notification in your operating system's notification center.</p>
+  
+  <p><strong>Q: Can I sync my events across multiple devices?</strong></p>
+  <p>A: The extension uses Chrome's sync storage, so if you're signed into Chrome on multiple devices, your events should sync automatically.</p>
   
   <div class="footer">
-    <p>Event Alert Extension &copy; 2025</p>
-    <p>If you need help or have suggestions, please contact 
-      <a href="https://github.com/Telomelonia">Telomelonia</a>.
-    </p>
-
+    <p>Event Alert Extension &copy; 2023</p>
+    <p>If you need help or have suggestions, please file an issue on our GitHub repository</p>
   </div>
 </body>
 </html>
+  
+  <div class="step">
+    <h2><span class="step-number">4</span>Managing Your Events</h2>
+    <p>
+      The "My Events" tab shows all the events you're currently monitoring. For each event, you can:
+    </p>
+    <ul>
+      <li>See how many days remain until the event</li>
+      <li>Toggle monitoring on/off using the switch</li>
+      <li>View details about the event URL and date</li>
+      <li>Edit the event settings</li>
+      <li>Delete events you no longer want to monitor</li>
+    </ul>
+    <div class="tip">
+      <strong>Tip:</strong> The color-coded indicators show how close your events are:
+      <ul>
+        <li><span style="background-color: #d50000; color: white; padding: 2px 6px; border-radius: 10px;">Today!</span> - Event is happening today</li>
+        <li><span style="background-color: #ff6d00; color: white; padding: 2px 6px; border-radius: 10px;">Tomorrow!</span> - Event is happening tomorrow</li>
+        <li><span style="background-color: #ffab00; color: #333; padding: 2px 6px; border-radius: 10px;">3 days left</span> - Event is approaching soon</li>
+        <li><span style="background-color: #aeea00; color: #333; padding: 2px 6px; border-radius: 10px;">10 days left</span> - Event is in the future</li>
+        <li><span style="background-color: #9e9e9e; color: white; padding: 2px 6px; border-radius: 10px;">Event has passed</span> - Event date has gone by</li>
+      </ul>
+    </div>
+  </div>
+  
+  <h2>How Event Reminders Work</h2>
+  <p>
+    When you add an event to monitor, the extension will:
+  </p>
+  <ol>
+    <li>Store the event information locally on your device</li>
+    <li>Check daily to see if any of your events are approaching their notification dates</li>
+    <li>Send browser notifications based on your preferences (1 week, 3 days, and/or 1 day before)</li>
+    <li>Show color-coded indicators in the extension to help you keep track of upcoming events</li>
+  </ol>
+  <div class="tip">
+    <strong>Note:</strong> This extension stores all data locally on your device. Your event information is not uploaded to any servers or shared with anyone.
+  </div>
+  
+  <div class="step">
+    <h2><span class="step-number">2</span>Understanding Date Detection</h2>
+    <p>
+      When you click "Detect Dates," a new tab will open with the target website. Here's how to use the date detection tool:
+    </p>
+    <ol>
+      <li>The extension will automatically scan the page for dates</li>
+      <li>All detected dates will be highlighted in yellow</li>
+      <li>Click on the date that corresponds to your event</li>
+      <li>The date will be automatically saved and the tab will close</li>
+    </ol>
+    <div class="tip">
+      <strong>Tip:</strong> If the extension doesn't detect the correct date, you can always set it manually using the date picker option.
+    </div>
+  </div>
+  
+  <div class="step">
+    <h2><span class="step-number">3</span>Configure Notification Settings</h2>
+    <p>
+      Go to the "Settings" tab to configure how you want to be notified about upcoming events:
+    </p>
+    <ol>
+      <li>Enable or disable browser notifications</li>
+      <li>Choose your preferred notification schedule</li>
+    </ol>
+    <div class="tip">
+      <strong>Tip:</strong> For important events, we recommend setting notifications at multiple intervals (1 week, 3 days, and 1 day before).
+    </div>

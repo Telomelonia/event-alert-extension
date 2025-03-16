@@ -3,48 +3,87 @@
 <head>
   <title>Event Alert Extension</title>
   <link rel="stylesheet" href="styles/popup.css">
+  <script src="scripts/storage-helper.js"></script>
 </head>
 <body>
   <div class="container">
     <h1>Event Alert Extension</h1>
     
+    <!-- Main content -->
     <div id="mainContent">
       <div class="tabs">
-        <button class="tab-btn active" data-tab="urlsTab">My URLs</button>
-        <button class="tab-btn" data-tab="addUrlTab">Add URL</button>
+        <button class="tab-btn active" data-tab="urlsTab">My Events</button>
+        <button class="tab-btn" data-tab="addUrlTab">Add Event</button>
         <button class="tab-btn" data-tab="settingsTab">Settings</button>
       </div>
       
-      <!-- URLs Tab -->
+      <!-- URLs Tab (renamed to Events) -->
       <div id="urlsTab" class="tab-content active">
-        <h2>Monitored URLs</h2>
+        <h2>Monitored Events</h2>
         <div id="urlsList">
-          <!-- URLs will be dynamically added here -->
-          <p class="empty-state">No URLs added yet. Add one in the "Add URL" tab.</p>
+          <!-- Events will be dynamically added here -->
+          <p class="empty-state">No events added yet. Add one in the "Add Event" tab.</p>
         </div>
       </div>
       
-      <!-- Add URL Tab -->
+      <!-- Add URL Tab (modified to focus on events) -->
       <div id="addUrlTab" class="tab-content">
-        <h2>Add URL to Monitor</h2>
+        <h2>Add Event to Monitor</h2>
         <div class="form-group">
-          <label for="urlInput">URL:</label>
-          <input type="url" id="urlInput" placeholder="https://example.com">
+          <label for="urlInput">Event Page URL:</label>
+          <input type="url" id="urlInput" placeholder="https://example.com/events">
         </div>
+        
         <div class="form-group">
-          <label for="selectorInput">CSS Selector (optional):</label>
-          <input type="text" id="selectorInput" placeholder="e.g., .event-container">
-          <button id="pickSelectorBtn">Pick from page</button>
+          <label>Date Detection Method:</label>
+          <div class="radio-group">
+            <label>
+              <input type="radio" name="detectionMethod" value="auto" checked> 
+              Auto-detect dates on page
+            </label>
+            <label>
+              <input type="radio" name="detectionMethod" value="manual"> 
+              Set date manually
+            </label>
+          </div>
         </div>
+        
+        <div id="manualDateContainer" class="form-group" style="display: none;">
+          <label for="manualDateInput">Event Date:</label>
+          <input type="date" id="manualDateInput">
+        </div>
+        
+        <div id="autoDetectContainer" class="form-group">
+          <div class="detected-date-info">
+            <span id="selectedDateDisplay">No date selected yet</span>
+            <button id="detectDatesBtn" class="secondary-btn">Detect Dates</button>
+          </div>
+        </div>
+        
         <div class="form-group">
-          <label for="frequencySelect">Check frequency:</label>
-          <select id="frequencySelect">
-            <option value="hourly">Hourly</option>
-            <option value="daily" selected>Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
+          <label for="eventNameInput">Event Name (optional):</label>
+          <input type="text" id="eventNameInput" placeholder="e.g., Conference, Concert, etc.">
         </div>
-        <button id="addUrlBtn">Add URL</button>
+        
+        <div class="form-group notification-options">
+          <label>Notification Options:</label>
+          <div class="checkbox-group">
+            <label>
+              <input type="checkbox" id="notifyOneWeek" checked> 
+              Notify 1 week before
+            </label>
+            <label>
+              <input type="checkbox" id="notifyThreeDays" checked> 
+              Notify 3 days before
+            </label>
+            <label>
+              <input type="checkbox" id="notifyOneDay" checked> 
+              Notify 1 day before
+            </label>
+          </div>
+        </div>
+        
+        <button id="addUrlBtn">Add Event</button>
       </div>
       
       <!-- Settings Tab -->
@@ -53,17 +92,30 @@
         <div class="form-group">
           <label>
             <input type="checkbox" id="browserNotifications" checked>
-            Browser notifications
+            Show browser notifications
           </label>
         </div>
         <div class="form-group">
-          <label for="notificationFrequency">Check frequency:</label>
+          <label for="notificationFrequency">Default notification schedule:</label>
           <select id="notificationFrequency">
-            <option value="immediate">Immediate</option>
-            <option value="daily">Daily digest</option>
-            <option value="weekly">Weekly digest</option>
+            <option value="automatic">Based on event proximity</option>
+            <option value="daily">Daily updates</option>
+            <option value="weekly">Weekly updates</option>
           </select>
         </div>
+        
+        <!-- Email notifications can be removed or disabled since we're using local storage -->
+        <div class="form-group" style="opacity: 0.5;">
+          <label>
+            <input type="checkbox" id="emailNotifications" disabled>
+            Receive email notifications (requires server setup)
+          </label>
+        </div>
+        <div class="form-group" style="opacity: 0.5;">
+          <label for="notificationEmail">Notification email:</label>
+          <input type="email" id="notificationEmail" placeholder="Not available in local version" disabled>
+        </div>
+        
         <button id="saveSettingsBtn">Save Settings</button>
       </div>
     </div>

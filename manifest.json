@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Event Alert Extension",
   "version": "1.0",
-  "description": "Monitor websites for changes and receive alerts",
+  "description": "Monitor events on websites and receive notifications when they are approaching",
   "permissions": [
     "storage",
     "alarms",

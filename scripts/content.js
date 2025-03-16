@@ -1,8 +1,10 @@
-// Selector tool for picking elements on webpages
+// Enhanced content script for date detection and element selection
 let selectorMode = false;
+let dateDetectionMode = false;
 let selectedElement = null;
 let highlightOverlay = null;
 let infoPanel = null;
+let detectedDates = [];
 
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -14,9 +16,415 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true; // Keep channel open for async response
   }
+  
+  if (message.action === 'detectDates') {
+    // Start date detection
+    detectDatesOnPage((dates) => {
+      sendResponse({ dates: dates });
+    });
+    return true; // Keep channel open for async response
+  }
 });
 
-// Start the selector tool
+// Function to detect dates on the page
+function detectDatesOnPage(callback) {
+  dateDetectionMode = true;
+  detectedDates = [];
+  
+  // Create info panel for date detection
+  createDateInfoPanel();
+  
+  // Find all text nodes in the document
+  const textNodes = [];
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+  let node;
+  while (node = walk.nextNode()) {
+    if (node.nodeValue.trim() !== '') {
+      textNodes.push(node);
+    }
+  }
+  
+  // Date patterns (supports various formats)
+  const datePatterns = [
+    // MM/DD/YYYY or DD/MM/YYYY
+    /\b(0?[1-9]|1[0-2])[\/\-](0?[1-9]|[12][0-9]|3[01])[\/\-](20\d{2})\b/g,
+    // YYYY/MM/DD
+    /\b(20\d{2})[\/\-](0?[1-9]|1[0-2])[\/\-](0?[1-9]|[12][0-9]|3[01])\b/g,
+    // Month DD, YYYY
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?,?\s+(20\d{2})\b/gi,
+    // DD Month YYYY
+    /\b(0?[1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December),?\s+(20\d{2})\b/gi,
+    // Today, Tomorrow, Next Week, etc.
+    /\b(today|tomorrow|next\s+week|next\s+month|next\s+weekend|this\s+weekend)\b/gi
+  ];
+  
+  // Process each text node
+  textNodes.forEach(textNode => {
+    const parentElement = textNode.parentElement;
+    const text = textNode.nodeValue;
+    
+    // Check each date pattern
+    datePatterns.forEach(pattern => {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          // Create a temporary element to highlight the date
+          const range = document.createRange();
+          const textContent = textNode.textContent;
+          const startIndex = textContent.indexOf(match);
+          
+          if (startIndex >= 0) {
+            range.setStart(textNode, startIndex);
+            range.setEnd(textNode, startIndex + match.length);
+            
+            // Store the date information
+            detectedDates.push({
+              date: match,
+              element: parentElement,
+              range: range,
+              xpath: getXPathForElement(parentElement)
+            });
+            
+            // Highlight the date text
+            highlightDate(range, match);
+          }
+        });
+      }
+    });
+  });
+  
+  // Update info panel with detected dates
+  updateDateInfoPanel();
+  
+  // Set up click event for date selection
+  document.addEventListener('click', handleDateClick);
+  
+  // Set up escape key handler
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      stopDateDetection();
+      if (callback) callback(null);
+    }
+  });
+  
+  console.log('Date detection activated');
+}
+
+// Create info panel with instructions and detected dates
+function createDateInfoPanel() {
+  infoPanel = document.createElement('div');
+  infoPanel.className = 'selector-tool-ui';
+  
+  Object.assign(infoPanel.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    width: '350px',
+    padding: '15px',
+    backgroundColor: 'white',
+    color: '#333',
+    borderRadius: '8px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+    zIndex: '999999',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '14px',
+    maxHeight: '400px',
+    overflowY: 'auto'
+  });
+  
+  infoPanel.innerHTML = `
+    <div style="margin-bottom: 10px">
+      <h3 style="margin: 0 0 10px 0">Date Detection Tool</h3>
+      <p style="margin: 0 0 5px 0">Click on a highlighted date to select it for monitoring.</p>
+      <p style="margin: 0">Press ESC to cancel.</p>
+    </div>
+    <div>
+      <h4 style="margin: 10px 0 5px 0">Detected Dates:</h4>
+      <div id="detected-dates-list" style="max-height: 200px; overflow-y: auto;"></div>
+    </div>
+  `;
+  
+  document.body.appendChild(infoPanel);
+}
+
+// Update the info panel with detected dates
+function updateDateInfoPanel() {
+  if (!infoPanel) return;
+  
+  const datesList = infoPanel.querySelector('#detected-dates-list');
+  
+  if (detectedDates.length === 0) {
+    datesList.innerHTML = '<p style="color: #777; font-style: italic;">No dates found on this page.</p>';
+    return;
+  }
+  
+  let html = '';
+  detectedDates.forEach((dateInfo, index) => {
+    html += `
+      <div style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 5px; cursor: pointer;" 
+           data-index="${index}" class="date-item">
+        ${dateInfo.date}
+      </div>
+    `;
+  });
+  
+  datesList.innerHTML = html;
+  
+  // Add click event listeners to date items
+  const dateItems = datesList.querySelectorAll('.date-item');
+  dateItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const index = parseInt(item.getAttribute('data-index'));
+      selectDate(detectedDates[index]);
+    });
+  });
+}
+
+// Highlight a date on the page
+function highlightDate(range, dateText) {
+  const highlightElement = document.createElement('span');
+  highlightElement.className = 'date-highlight';
+  
+  Object.assign(highlightElement.style, {
+    backgroundColor: 'rgba(255, 193, 7, 0.3)',
+    border: '1px solid #FFC107',
+    borderRadius: '2px',
+    padding: '2px',
+    cursor: 'pointer'
+  });
+  
+  try {
+    range.surroundContents(highlightElement);
+  } catch (e) {
+    console.log('Could not highlight date: ', e);
+  }
+}
+
+// Handle date click for selection
+function handleDateClick(e) {
+  if (!dateDetectionMode) return;
+  
+  // Check if clicked element is a date highlight
+  let targetElement = e.target;
+  if (targetElement.className === 'date-highlight' || 
+      targetElement.closest('.date-highlight')) {
+    
+    // Find the date info for this highlighted element
+    let dateInfo = null;
+    for (let i = 0; i < detectedDates.length; i++) {
+      if (detectedDates[i].element.contains(targetElement) || targetElement.contains(detectedDates[i].element)) {
+        dateInfo = detectedDates[i];
+        break;
+      }
+    }
+    
+    if (dateInfo) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectDate(dateInfo);
+    }
+  }
+}
+
+// Select a date for monitoring
+function selectDate(dateInfo) {
+  // Stop date detection
+  stopDateDetection();
+  
+  // Prepare date info to return
+  const selectedDate = {
+    date: dateInfo.date,
+    xpath: dateInfo.xpath
+  };
+  
+  // Parse the date to determine how far in the future it is
+  const parsedDate = parseDate(dateInfo.date);
+  if (parsedDate) {
+    selectedDate.parsedDate = parsedDate.toISOString();
+    
+    // Calculate days until the event
+    const today = new Date();
+    const daysUntil = Math.ceil((parsedDate - today) / (1000 * 60 * 60 * 24));
+    selectedDate.daysUntil = daysUntil;
+  }
+  
+  // Return selected date via callback
+  if (window.dateCallback) {
+    window.dateCallback(selectedDate);
+  }
+}
+
+// Stop date detection and clean up
+function stopDateDetection() {
+  if (!dateDetectionMode) return;
+  
+  dateDetectionMode = false;
+  
+  // Remove event listeners
+  document.removeEventListener('click', handleDateClick);
+  
+  // Clean up UI
+  if (infoPanel) {
+    document.body.removeChild(infoPanel);
+    infoPanel = null;
+  }
+  
+  // Remove date highlights
+  const highlights = document.querySelectorAll('.date-highlight');
+  highlights.forEach(highlight => {
+    const parent = highlight.parentNode;
+    while (highlight.firstChild) {
+      parent.insertBefore(highlight.firstChild, highlight);
+    }
+    parent.removeChild(highlight);
+  });
+  
+  console.log('Date detection deactivated');
+}
+
+// Helper function to get XPath for an element
+function getXPathForElement(element) {
+  if (element.id) {
+    return `//*[@id="${element.id}"]`;
+  }
+  
+  if (element === document.body) {
+    return '/html/body';
+  }
+  
+  let ix = 0;
+  const siblings = element.parentNode.childNodes;
+  
+  for (let i = 0; i < siblings.length; i++) {
+    const sibling = siblings[i];
+    
+    if (sibling === element) {
+      const path = getXPathForElement(element.parentNode);
+      const tagName = element.tagName.toLowerCase();
+      return `${path}/${tagName}[${ix + 1}]`;
+    }
+    
+    if (sibling.nodeType === 1 && sibling.tagName.toLowerCase() === element.tagName.toLowerCase()) {
+      ix++;
+    }
+  }
+}
+
+// Parse various date formats
+function parseDate(dateStr) {
+  dateStr = dateStr.toLowerCase().trim();
+  
+  // Handle relative dates
+  if (dateStr.includes('today')) {
+    return new Date();
+  }
+  
+  if (dateStr.includes('tomorrow')) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  }
+  
+  if (dateStr.includes('next week')) {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    return nextWeek;
+  }
+  
+  if (dateStr.includes('next month')) {
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    return nextMonth;
+  }
+  
+  if (dateStr.includes('this weekend') || dateStr.includes('next weekend')) {
+    const weekend = new Date();
+    // Get next Saturday
+    weekend.setDate(weekend.getDate() + (6 - weekend.getDay()));
+    return weekend;
+  }
+  
+  // Try to parse with built-in Date parser
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  
+  // Try MM/DD/YYYY or DD/MM/YYYY format
+  const regex1 = /(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})/;
+  const match1 = dateStr.match(regex1);
+  if (match1) {
+    // Since we don't know if it's MM/DD or DD/MM format, we'll favor MM/DD (US format)
+    // You might want to make this configurable based on user's locale
+    const month = parseInt(match1[1]) - 1; // Months are 0-indexed in JS
+    const day = parseInt(match1[2]);
+    const year = parseInt(match1[3]);
+    
+    // Validate month and day
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      return new Date(year, month, day);
+    }
+    
+    // Try the other way around (DD/MM)
+    const month2 = parseInt(match1[2]) - 1;
+    const day2 = parseInt(match1[1]);
+    
+    if (month2 >= 0 && month2 <= 11 && day2 >= 1 && day2 <= 31) {
+      return new Date(year, month2, day2);
+    }
+  }
+  
+  // Try YYYY/MM/DD format
+  const regex2 = /(20\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/;
+  const match2 = dateStr.match(regex2);
+  if (match2) {
+    const year = parseInt(match2[1]);
+    const month = parseInt(match2[2]) - 1;
+    const day = parseInt(match2[3]);
+    
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  // Try Month DD, YYYY format
+  const months = {
+    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+  };
+  
+  const regex3 = /(\w+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})/i;
+  const match3 = dateStr.match(regex3);
+  if (match3) {
+    const monthName = match3[1].toLowerCase();
+    const month = months[monthName];
+    const day = parseInt(match3[2]);
+    const year = parseInt(match3[3]);
+    
+    if (month !== undefined && day >= 1 && day <= 31) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  // Try DD Month YYYY format
+  const regex4 = /(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),?\s+(20\d{2})/i;
+  const match4 = dateStr.match(regex4);
+  if (match4) {
+    const day = parseInt(match4[1]);
+    const monthName = match4[2].toLowerCase();
+    const month = months[monthName];
+    const year = parseInt(match4[3]);
+    
+    if (month !== undefined && day >= 1 && day <= 31) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  // Could not parse the date
+  return null;
+}
+
+// Original element selector functionality
 function startSelectorTool(callback) {
   if (selectorMode) return;
   
@@ -264,5 +672,5 @@ function generateSelector(element) {
     currentElement = currentElement.parentElement;
   }
   
-  return path.join(' > ');
-}
+    return path.join(' > ');
+  }

@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   // UI Elements
+  const mainContent = document.getElementById('mainContent');
   const urlsList = document.getElementById('urlsList');
   
   // Tab navigation
@@ -8,16 +9,33 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Form elements
   const urlInput = document.getElementById('urlInput');
-  const selectorInput = document.getElementById('selectorInput');
-  const frequencySelect = document.getElementById('frequencySelect');
+  const eventNameInput = document.getElementById('eventNameInput');
+  const manualDateInput = document.getElementById('manualDateInput');
+  const detectDatesBtn = document.getElementById('detectDatesBtn');
+  const selectedDateDisplay = document.getElementById('selectedDateDisplay');
   const addUrlBtn = document.getElementById('addUrlBtn');
-  const pickSelectorBtn = document.getElementById('pickSelectorBtn');
   
-  const browserNotifications = document.getElementById('browserNotifications');
+  const detectionMethodRadios = document.querySelectorAll('input[name="detectionMethod"]');
+  const manualDateContainer = document.getElementById('manualDateContainer');
+  const autoDetectContainer = document.getElementById('autoDetectContainer');
+  
+  const notifyOneWeek = document.getElementById('notifyOneWeek');
+  const notifyThreeDays = document.getElementById('notifyThreeDays');
+  const notifyOneDay = document.getElementById('notifyOneDay');
+  
+  const emailNotifications = document.getElementById('emailNotifications');
+  const notificationEmail = document.getElementById('notificationEmail');
   const notificationFrequency = document.getElementById('notificationFrequency');
+  const browserNotifications = document.getElementById('browserNotifications');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   
-  // Initialize UI
+  // Store detected/selected date information
+  let selectedDateInfo = null;
+  
+  // Show main content immediately (since we're not using auth)
+  mainContent.style.display = 'block';
+  
+  // Load user data on startup
   loadUserData();
   
   // Tab navigation handlers
@@ -36,31 +54,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   
-  // URL Management
-  addUrlBtn.addEventListener('click', async () => {
-    const url = urlInput.value.trim();
-    const selector = selectorInput.value.trim();
-    const frequency = frequencySelect.value;
-    
-    if (!url) {
-      alert('Please enter a URL');
-      return;
-    }
-    
-    try {
-      await addURL(url, selector, frequency);
-      urlInput.value = '';
-      selectorInput.value = '';
+  // Toggle between manual date input and automatic date detection
+  detectionMethodRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const method = document.querySelector('input[name="detectionMethod"]:checked').value;
       
-      // Switch to URLs tab and refresh list
-      tabButtons[0].click();
-      loadUserURLs();
-    } catch (error) {
-      alert(`Failed to add URL: ${error.message}`);
-    }
+      if (method === 'manual') {
+        manualDateContainer.style.display = 'block';
+        autoDetectContainer.style.display = 'none';
+        
+        // Reset automatic detection data
+        selectedDateInfo = null;
+        selectedDateDisplay.textContent = 'No date selected yet';
+      } else {
+        manualDateContainer.style.display = 'none';
+        autoDetectContainer.style.display = 'block';
+      }
+    });
   });
   
-  pickSelectorBtn.addEventListener('click', async () => {
+  // Date detection button handler
+  detectDatesBtn.addEventListener('click', async () => {
     const url = urlInput.value.trim();
     
     if (!url) {
@@ -68,86 +82,204 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Send message to background script to open selector tool
+    // Send message to background script to open date detector
     chrome.runtime.sendMessage({
-      action: 'openSelectorTool',
+      action: 'openDateDetector',
       url: url
     }, (response) => {
-      if (response && response.selector) {
-        selectorInput.value = response.selector;
+      if (response && response.date) {
+        selectedDateInfo = response.date;
+        
+        // Update UI to show selected date
+        if (selectedDateInfo.date) {
+          selectedDateDisplay.textContent = `Selected date: ${selectedDateInfo.date}`;
+          
+          if (selectedDateInfo.daysUntil !== undefined) {
+            selectedDateDisplay.textContent += ` (${selectedDateInfo.daysUntil} days from now)`;
+          }
+        }
       }
     });
+  });
+  
+  // Add event button handler
+  addUrlBtn.addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    const eventName = eventNameInput.value.trim();
+    const method = document.querySelector('input[name="detectionMethod"]:checked').value;
+    
+    if (!url) {
+      alert('Please enter a URL');
+      return;
+    }
+    
+    let eventDate, daysUntil, dateSelector;
+    
+    if (method === 'manual') {
+      const manualDate = manualDateInput.value;
+      if (!manualDate) {
+        alert('Please select an event date');
+        return;
+      }
+      
+      eventDate = manualDate;
+      const dateObj = new Date(manualDate);
+      const today = new Date();
+      daysUntil = Math.ceil((dateObj - today) / (1000 * 60 * 60 * 24));
+      dateSelector = null;
+    } else {
+      if (!selectedDateInfo) {
+        alert('Please detect and select a date from the page first');
+        return;
+      }
+      
+      eventDate = selectedDateInfo.parsedDate || selectedDateInfo.date;
+      daysUntil = selectedDateInfo.daysUntil;
+      dateSelector = selectedDateInfo.xpath;
+    }
+    
+    // Get notification preferences
+    const notificationTriggers = {
+      oneWeekBefore: notifyOneWeek.checked,
+      threeDaysBefore: notifyThreeDays.checked,
+      oneDayBefore: notifyOneDay.checked
+    };
+    
+    try {
+      // Add event to monitoring
+      await storageHelper.addEvent(
+        url,
+        eventName || 'Unnamed Event',
+        eventDate,
+        dateSelector,
+        notificationTriggers
+      );
+      
+      // Reset form
+      urlInput.value = '';
+      eventNameInput.value = '';
+      manualDateInput.value = '';
+      selectedDateInfo = null;
+      selectedDateDisplay.textContent = 'No date selected yet';
+      
+      // Switch to events tab and refresh list
+      tabButtons[0].click();
+      loadUserEvents();
+    } catch (error) {
+      alert(`Failed to add event: ${error.message}`);
+    }
   });
   
   // Settings Management
   saveSettingsBtn.addEventListener('click', async () => {
     const preferences = {
-      browserNotifications: browserNotifications.checked,
-      notificationFrequency: notificationFrequency.value
+      emailNotifications: emailNotifications.checked,
+      notificationEmail: notificationEmail.value.trim(),
+      notificationFrequency: notificationFrequency.value,
+      browserNotifications: browserNotifications.checked
     };
     
     try {
-      await updateUserPreferences(preferences);
+      await storageHelper.updatePreferences(preferences);
       alert('Settings saved successfully');
     } catch (error) {
       alert(`Failed to save settings: ${error.message}`);
     }
   });
   
-  // Load user data (URLs and preferences)
+  // Load user data (events and preferences)
   async function loadUserData() {
     try {
       // Load user preferences
-      const preferences = await getUserPreferences();
-      browserNotifications.checked = preferences.browserNotifications;
-      notificationFrequency.value = preferences.notificationFrequency || 'immediate';
+      const preferences = await storageHelper.getPreferences();
+      emailNotifications.checked = preferences.emailNotifications;
+      notificationEmail.value = preferences.notificationEmail || '';
+      notificationFrequency.value = preferences.notificationFrequency || 'automatic';
+      browserNotifications.checked = preferences.browserNotifications !== false; // Default to true if not set
       
-      // Load user URLs
-      loadUserURLs();
+      // Load user events
+      loadUserEvents();
     } catch (error) {
       console.error('Error loading user data:', error);
     }
   }
   
-  // Load and display user URLs
-  async function loadUserURLs() {
+  // Load and display user events
+  async function loadUserEvents() {
     try {
-      const urls = await getUserURLs();
+      const events = await storageHelper.getEvents();
       
-      if (urls.length === 0) {
-        urlsList.innerHTML = '<p class="empty-state">No URLs added yet. Add one in the "Add URL" tab.</p>';
+      if (events.length === 0) {
+        urlsList.innerHTML = '<p class="empty-state">No events added yet. Add one in the "Add Event" tab.</p>';
         return;
       }
       
+      // Sort events by date (closest first)
+      const sortedEvents = [...events].sort((a, b) => {
+        const dateA = new Date(a.eventDate);
+        const dateB = new Date(b.eventDate);
+        return dateA - dateB;
+      });
+      
       urlsList.innerHTML = '';
       
-      urls.forEach(urlData => {
+      sortedEvents.forEach(event => {
         const urlItem = document.createElement('div');
         urlItem.className = 'url-item';
         
-        const frequencyText = {
-          'hourly': 'Every hour',
-          'daily': 'Once a day',
-          'weekly': 'Once a week'
-        }[urlData.frequency] || urlData.frequency;
+        // Calculate days remaining
+        let daysRemaining = 'Unknown date';
+        let statusClass = '';
+        
+        if (event.eventDate) {
+          const eventDate = new Date(event.eventDate);
+          const today = new Date();
+          const timeRemaining = eventDate - today;
+          const daysRemain = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
+          
+          if (daysRemain < 0) {
+            daysRemaining = 'Event has passed';
+            statusClass = 'status-passed';
+          } else if (daysRemain === 0) {
+            daysRemaining = 'Today!';
+            statusClass = 'status-today';
+          } else if (daysRemain === 1) {
+            daysRemaining = 'Tomorrow!';
+            statusClass = 'status-soon';
+          } else if (daysRemain <= 3) {
+            daysRemaining = `${daysRemain} days left`;
+            statusClass = 'status-soon';
+          } else if (daysRemain <= 7) {
+            daysRemaining = `${daysRemain} days left`;
+            statusClass = 'status-upcoming';
+          } else {
+            daysRemaining = `${daysRemain} days left`;
+            statusClass = 'status-future';
+          }
+        }
         
         urlItem.innerHTML = `
           <div class="url-header">
-            <h3>${truncateURL(urlData.url)}</h3>
+            <h3>${event.eventName || truncateURL(event.url)}</h3>
+            <span class="event-status ${statusClass}">${daysRemaining}</span>
             <label class="switch">
-              <input type="checkbox" class="url-toggle" data-id="${urlData.id}" ${urlData.enabled ? 'checked' : ''}>
+              <input type="checkbox" class="url-toggle" data-id="${event.id}" ${event.enabled ? 'checked' : ''}>
               <span class="slider"></span>
             </label>
           </div>
           <div class="url-details">
-            <p><strong>Full URL:</strong> ${urlData.url}</p>
-            <p><strong>Selector:</strong> ${urlData.selector || 'Entire page'}</p>
-            <p><strong>Frequency:</strong> ${frequencyText}</p>
-            <p><strong>Last checked:</strong> ${urlData.lastChecked ? new Date(urlData.lastChecked).toLocaleString() : 'Never'}</p>
+            <p><strong>URL:</strong> <a href="${event.url}" target="_blank">${truncateURL(event.url)}</a></p>
+            <p><strong>Event Date:</strong> ${event.eventDate ? formatDate(event.eventDate) : 'Unknown'}</p>
+            <p><strong>Notifications:</strong> 
+              ${event.notificationTriggers.oneWeekBefore ? '1 week before, ' : ''}
+              ${event.notificationTriggers.threeDaysBefore ? '3 days before, ' : ''}
+              ${event.notificationTriggers.oneDayBefore ? '1 day before' : ''}
+            </p>
+            <p><strong>Last checked:</strong> ${event.lastChecked ? new Date(event.lastChecked).toLocaleString() : 'Never'}</p>
           </div>
           <div class="url-actions">
-            <button class="edit-url-btn" data-id="${urlData.id}">Edit</button>
-            <button class="delete-url-btn" data-id="${urlData.id}">Delete</button>
+            <button class="edit-url-btn" data-id="${event.id}">Edit</button>
+            <button class="delete-url-btn" data-id="${event.id}">Delete</button>
           </div>
         `;
         
@@ -155,139 +287,182 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       
       // Add event listeners to the newly created buttons
-      addURLItemEventListeners();
+      addEventItemEventListeners();
     } catch (error) {
-      console.error('Error loading URLs:', error);
-      urlsList.innerHTML = '<p class="error-state">Error loading URLs. Please try again.</p>';
+      console.error('Error loading events:', error);
+      urlsList.innerHTML = '<p class="error-state">Error loading events. Please try again.</p>';
     }
   }
   
-  // Add event listeners to URL items
-  function addURLItemEventListeners() {
-    // URL toggle switches
+  // Add event listeners to event items
+  function addEventItemEventListeners() {
+    // Event toggle switches
     document.querySelectorAll('.url-toggle').forEach(toggle => {
       toggle.addEventListener('change', async (e) => {
-        const urlId = e.target.getAttribute('data-id');
+        const eventId = e.target.getAttribute('data-id');
         const enabled = e.target.checked;
         
         try {
-          await updateURL(urlId, { enabled });
+          await storageHelper.updateEvent(eventId, { enabled });
         } catch (error) {
-          console.error('Error updating URL status:', error);
+          console.error('Error updating event status:', error);
           // Revert the toggle if update fails
           e.target.checked = !enabled;
         }
       });
     });
     
-    // Delete URL buttons
+    // Delete event buttons
     document.querySelectorAll('.delete-url-btn').forEach(button => {
       button.addEventListener('click', async (e) => {
-        const urlId = e.target.getAttribute('data-id');
+        const eventId = e.target.getAttribute('data-id');
         
-        if (confirm('Are you sure you want to delete this URL?')) {
+        if (confirm('Are you sure you want to delete this event?')) {
           try {
-            await deleteURL(urlId);
-            loadUserURLs(); // Refresh the list
+            await storageHelper.deleteEvent(eventId);
+            loadUserEvents(); // Refresh the list
           } catch (error) {
-            console.error('Error deleting URL:', error);
-            alert(`Failed to delete URL: ${error.message}`);
+            console.error('Error deleting event:', error);
+            alert(`Failed to delete event: ${error.message}`);
           }
         }
       });
     });
     
-    // Edit URL buttons
+    // Edit event buttons
     document.querySelectorAll('.edit-url-btn').forEach(button => {
       button.addEventListener('click', async (e) => {
-        const urlId = e.target.getAttribute('data-id');
+        const eventId = e.target.getAttribute('data-id');
         
         try {
-          // Get URL data
-          const urls = await getUserURLs();
-          const urlData = urls.find(url => url.id === urlId);
+          // Get all events
+          const events = await storageHelper.getEvents();
+          const event = events.find(e => e.id === eventId);
           
-          if (urlData) {
-            // Fill the form with URL data
-            urlInput.value = urlData.url;
-            selectorInput.value = urlData.selector || '';
-            frequencySelect.value = urlData.frequency;
+          if (!event) {
+            alert('Event not found');
+            return;
+          }
+          
+          // Switch to edit tab
+          tabButtons[1].click();
+          
+          // Fill form with event data
+          urlInput.value = event.url;
+          eventNameInput.value = event.eventName || '';
+          
+          // Set detection method
+          if (event.dateSelector) {
+            document.querySelector('input[name="detectionMethod"][value="auto"]').checked = true;
+            manualDateContainer.style.display = 'none';
+            autoDetectContainer.style.display = 'block';
+            selectedDateDisplay.textContent = `Selected date: ${formatDate(event.eventDate)}`;
+          } else {
+            document.querySelector('input[name="detectionMethod"][value="manual"]').checked = true;
+            manualDateContainer.style.display = 'block';
+            autoDetectContainer.style.display = 'none';
             
-            // Switch to Add URL tab (which will be used for editing)
-            tabButtons[1].click();
+            // Format date for input (YYYY-MM-DD)
+            const dateObj = new Date(event.eventDate);
+            const formattedDate = dateObj.toISOString().split('T')[0];
+            manualDateInput.value = formattedDate;
+          }
+          
+          // Set notification triggers
+          notifyOneWeek.checked = event.notificationTriggers.oneWeekBefore;
+          notifyThreeDays.checked = event.notificationTriggers.threeDaysBefore;
+          notifyOneDay.checked = event.notificationTriggers.oneDayBefore;
+          
+          // Change button text
+          addUrlBtn.textContent = 'Update Event';
+          
+          // Store original ID for updating
+          addUrlBtn.setAttribute('data-edit-id', eventId);
+          
+          // Change click handler temporarily
+          const originalClickHandler = addUrlBtn.onclick;
+          addUrlBtn.onclick = async () => {
+            // Get form values
+            const url = urlInput.value.trim();
+            const eventName = eventNameInput.value.trim();
+            const method = document.querySelector('input[name="detectionMethod"]:checked').value;
             
-            // Change Add URL button text
-            addUrlBtn.textContent = 'Update URL';
-            
-            // Save URL ID for update
-            addUrlBtn.setAttribute('data-edit-id', urlId);
-            
-            // Add event listener for cancel
-            const cancelEditListener = () => {
-              addUrlBtn.textContent = 'Add URL';
-              addUrlBtn.removeAttribute('data-edit-id');
-              urlInput.value = '';
-              selectorInput.value = '';
-              frequencySelect.value = 'daily';
-              tabButtons[0].click();
-            };
-            
-            // Add cancel button if it doesn't exist
-            if (!document.getElementById('cancelEditBtn')) {
-              const cancelBtn = document.createElement('button');
-              cancelBtn.id = 'cancelEditBtn';
-              cancelBtn.textContent = 'Cancel';
-              cancelBtn.style.marginLeft = '10px';
-              addUrlBtn.parentNode.appendChild(cancelBtn);
-              
-              cancelBtn.addEventListener('click', cancelEditListener);
+            if (!url) {
+              alert('Please enter a URL');
+              return;
             }
             
-            // Override add URL button functionality for edit
-            const originalAddUrlListener = addUrlBtn.onclick;
-            addUrlBtn.onclick = async () => {
-              const newUrl = urlInput.value.trim();
-              const newSelector = selectorInput.value.trim();
-              const newFrequency = frequencySelect.value;
-              
-              if (!newUrl) {
-                alert('Please enter a URL');
+            let eventDate, dateSelector;
+            
+            if (method === 'manual') {
+              const manualDate = manualDateInput.value;
+              if (!manualDate) {
+                alert('Please select an event date');
                 return;
               }
               
-              try {
-                await updateURL(urlId, {
-                  url: newUrl,
-                  selector: newSelector,
-                  frequency: newFrequency
-                });
-                
-                // Reset form and button
-                addUrlBtn.textContent = 'Add URL';
-                addUrlBtn.removeAttribute('data-edit-id');
-                addUrlBtn.onclick = originalAddUrlListener;
-                
-                // Remove cancel button
-                const cancelBtn = document.getElementById('cancelEditBtn');
-                if (cancelBtn) {
-                  cancelBtn.parentNode.removeChild(cancelBtn);
-                }
-                
-                urlInput.value = '';
-                selectorInput.value = '';
-                frequencySelect.value = 'daily';
-                
-                // Switch back to URLs tab and refresh
-                tabButtons[0].click();
-                loadUserURLs();
-              } catch (error) {
-                alert(`Failed to update URL: ${error.message}`);
+              eventDate = manualDate;
+              dateSelector = null;
+            } else {
+              if (!selectedDateInfo && !event.dateSelector) {
+                alert('Please detect and select a date from the page first');
+                return;
               }
+              
+              // Use existing date if no new one selected
+              eventDate = selectedDateInfo ? 
+                          (selectedDateInfo.parsedDate || selectedDateInfo.date) : 
+                          event.eventDate;
+              dateSelector = selectedDateInfo ? 
+                            selectedDateInfo.xpath : 
+                            event.dateSelector;
+            }
+            
+            // Calculate days until
+            const dateObj = new Date(eventDate);
+            const today = new Date();
+            const daysUntil = Math.ceil((dateObj - today) / (1000 * 60 * 60 * 24));
+            
+            // Get notification preferences
+            const notificationTriggers = {
+              oneWeekBefore: notifyOneWeek.checked,
+              threeDaysBefore: notifyThreeDays.checked,
+              oneDayBefore: notifyOneDay.checked
             };
-          }
+            
+            try {
+              // Update event
+              await storageHelper.updateEvent(eventId, {
+                url,
+                eventName: eventName || 'Unnamed Event',
+                eventDate,
+                daysUntil,
+                dateSelector,
+                notificationTriggers
+              });
+              
+              // Reset form
+              urlInput.value = '';
+              eventNameInput.value = '';
+              manualDateInput.value = '';
+              selectedDateInfo = null;
+              selectedDateDisplay.textContent = 'No date selected yet';
+              
+              // Reset button
+              addUrlBtn.textContent = 'Add Event';
+              addUrlBtn.removeAttribute('data-edit-id');
+              addUrlBtn.onclick = originalClickHandler;
+              
+              // Switch to events tab and refresh list
+              tabButtons[0].click();
+              loadUserEvents();
+            } catch (error) {
+              alert(`Failed to update event: ${error.message}`);
+            }
+          };
         } catch (error) {
-          console.error('Error editing URL:', error);
-          alert(`Failed to edit URL: ${error.message}`);
+          console.error('Error editing event:', error);
+          alert(`Failed to edit event: ${error.message}`);
         }
       });
     });
@@ -303,141 +478,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  // ---- Storage API Functions ----
-  
-  // Get user preferences from Chrome storage
-  function getUserPreferences() {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('userPreferences', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        
-        const defaultPreferences = {
-          browserNotifications: true,
-          notificationFrequency: 'immediate'
-        };
-        
-        resolve(result.userPreferences || defaultPreferences);
-      });
-    });
-  }
-  
-  // Update user preferences in Chrome storage
-  function updateUserPreferences(preferences) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set({ userPreferences: preferences }, () => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-  
-  // Get all URLs from Chrome storage
-  function getUserURLs() {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('monitoredURLs', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        
-        resolve(result.monitoredURLs || []);
-      });
-    });
-  }
-  
-  // Add a new URL to Chrome storage
-  function addURL(url, selector, frequency) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('monitoredURLs', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        
-        const urls = result.monitoredURLs || [];
-        
-        // Generate a unique ID
-        const id = 'url_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-        
-        const newURL = {
-          id: id,
-          url: url,
-          selector: selector,
-          frequency: frequency,
-          enabled: true,
-          createdAt: new Date().toISOString(),
-          lastChecked: null,
-          lastContentHash: null
-        };
-        
-        urls.push(newURL);
-        
-        chrome.storage.local.set({ monitoredURLs: urls }, () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve();
-          }
-        });
-      });
-    });
-  }
-  
-  // Update a URL in Chrome storage
-  function updateURL(urlId, updates) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('monitoredURLs', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        
-        const urls = result.monitoredURLs || [];
-        const urlIndex = urls.findIndex(url => url.id === urlId);
-        
-        if (urlIndex !== -1) {
-          urls[urlIndex] = { ...urls[urlIndex], ...updates };
-          
-          chrome.storage.local.set({ monitoredURLs: urls }, () => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve();
-            }
-          });
-        } else {
-          reject(new Error(`URL with ID ${urlId} not found`));
-        }
-      });
-    });
-  }
-  
-  // Delete a URL from Chrome storage
-  function deleteURL(urlId) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('monitoredURLs', (result) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        
-        const urls = result.monitoredURLs || [];
-        const newUrls = urls.filter(url => url.id !== urlId);
-        
-        chrome.storage.local.set({ monitoredURLs: newUrls }, () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve();
-          }
-        });
-      });
+  // Helper function to format dates nicely
+  function formatDate(date) {
+    // Check if it's a string or a Date object
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Format as "Monday, January 1, 2023"
+    return dateObj.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
     });
   }
 });
