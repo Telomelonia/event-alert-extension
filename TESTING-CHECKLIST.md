@@ -4,10 +4,10 @@ Use this checklist to verify that all aspects of the extension are working corre
 
 ## Setup and Installation
 
-- [ ] Extension loads correctly in Chrome browser
-- [ ] Manifest.json has all required permissions
-- [ ] Onboarding page opens on first installation
-- [ ] Extension popup displays correctly with appropriate width
+- [x] Extension loads correctly in Chrome browser
+- [x] Manifest.json has all required permissions
+- [x] Onboarding page opens on first installation
+- [x] Extension popup displays correctly with appropriate width
 
 ## Event Management
 
@@ -101,4 +101,4 @@ Keep track of any issues discovered and their resolutions:
 - [ ] All tests passed
 - [ ] Ready for distribution
 
-Tested By: ********\_\_******** Date: ****\_\_****
+Tested By: **\*\*\*\***\_\_**\*\*\*\*** Date: \***\*\_\_\*\***
