@@ -92,9 +92,7 @@ Use this checklist to verify that all aspects of the extension are working corre
 
 Keep track of any issues discovered and their resolutions:
 
-1.
-2.
-3.
+1.https://github.com/Telomelonia/event-alert-extension/issues/1 2.https://github.com/Telomelonia/event-alert-extension/issues/2 3.
 
 ## Final Approval
 
